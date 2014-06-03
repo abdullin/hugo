@@ -14,6 +14,7 @@
 package hugolib
 
 import (
+	"html/template"
 	"sort"
 	"strings"
 
@@ -21,14 +22,15 @@ import (
 )
 
 type MenuEntry struct {
-	Url      string
-	Name     string
-	Menu     string
-	PreName  string
-	PostName string
-	Weight   int
-	Parent   string
-	Children Menu
+	Url        string
+	Name       string
+	Menu       string
+	Identifier string
+	Pre        template.HTML
+	Post       template.HTML
+	Weight     int
+	Parent     string
+	Children   Menu
 }
 
 type Menu []*MenuEntry
@@ -44,6 +46,27 @@ func (me *MenuEntry) HasChildren() bool {
 	return me.Children != nil
 }
 
+func (me *MenuEntry) KeyName() string {
+	if me.Identifier != "" {
+		return me.Identifier
+	}
+	return me.Name
+}
+
+func (me *MenuEntry) hopefullyUniqueId() string {
+	if me.Identifier != "" {
+		return me.Identifier
+	} else if me.Url != "" {
+		return me.Url
+	} else {
+		return me.Name
+	}
+}
+
+func (me *MenuEntry) IsEqual(inme *MenuEntry) bool {
+	return me.hopefullyUniqueId() == inme.hopefullyUniqueId() && me.Parent == inme.Parent
+}
+
 func (me *MenuEntry) MarshallMap(ime map[string]interface{}) {
 	for k, v := range ime {
 		loki := strings.ToLower(k)
@@ -54,24 +77,17 @@ func (me *MenuEntry) MarshallMap(ime map[string]interface{}) {
 			me.Weight = cast.ToInt(v)
 		case "name":
 			me.Name = cast.ToString(v)
+		case "pre":
+			me.Pre = template.HTML(cast.ToString(v))
+		case "post":
+			me.Post = template.HTML(cast.ToString(v))
+		case "identifier":
+			me.Identifier = cast.ToString(v)
 		case "parent":
 			me.Parent = cast.ToString(v)
 		}
 	}
 }
-
-//func (me *MenuEntry) RelUrl() string {
-//link, err := p.permalink()
-//if err != nil {
-//return "", err
-//}
-
-//link.Scheme = ""
-//link.Host = ""
-//link.User = nil
-//link.Opaque = ""
-//return link.String(), nil
-//}
 
 func (m Menu) Add(me *MenuEntry) Menu {
 	app := func(slice Menu, x ...*MenuEntry) Menu {

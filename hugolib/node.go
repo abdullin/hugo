@@ -20,7 +20,7 @@ import (
 
 type Node struct {
 	RSSLink template.HTML
-	Site    SiteInfo
+	Site    *SiteInfo
 	//	layout      string
 	Data        map[string]interface{}
 	Title       string
@@ -39,7 +39,7 @@ func (n *Node) Now() time.Time {
 func (n *Node) HasMenuCurrent(menu string, me *MenuEntry) bool {
 	return false
 }
-func (n *Node) IsMenuCurrent(menu string, name string) bool {
+func (n *Node) IsMenuCurrent(menu string, me *MenuEntry) bool {
 	return false
 }
 

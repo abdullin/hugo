@@ -261,10 +261,7 @@ func (s *Site) initialize() (err error) {
 }
 
 func (s *Site) initializeSiteInfo() {
-	params, ok := viper.Get("Params").(map[string]interface{})
-	if !ok {
-		params = make(map[string]interface{})
-	}
+	params := viper.GetStringMap("Params")
 
 	permalinks := make(PermalinkOverrides)
 	for k, v := range viper.GetStringMapString("Permalinks") {
@@ -334,7 +331,7 @@ func (s *Site) CreatePages() (err error) {
 			if err != nil {
 				return err
 			}
-			page.Site = s.Info
+			page.Site = &s.Info
 			page.Tmpl = s.Tmpl
 			page.Section = file.Section
 			page.Dir = file.Dir
@@ -347,7 +344,7 @@ func (s *Site) CreatePages() (err error) {
 				return err
 			}
 
-			if viper.GetBool("BuildDrafts") || !page.Draft {
+			if page.ShouldBuild() {
 				s.Pages = append(s.Pages, page)
 			}
 
@@ -420,14 +417,17 @@ func (s *Site) assembleMenus() {
 	menuConfig := s.getMenusFromConfig()
 	for name, menu := range menuConfig {
 		for _, me := range *menu {
-			flat[twoD{name, me.Name}] = me
+			flat[twoD{name, me.KeyName()}] = me
 		}
 	}
 
 	//creating flat hash
 	for _, p := range s.Pages {
 		for name, me := range p.Menus() {
-			flat[twoD{name, me.Name}] = me
+			if _, ok := flat[twoD{name, me.KeyName()}]; ok {
+				jww.ERROR.Printf("Two or more menu items have the same name/identifier in %q Menu. Identified as %q.\n Rename or set a unique identifier. \n", name, me.KeyName())
+			}
+			flat[twoD{name, me.KeyName()}] = me
 		}
 	}
 
@@ -708,7 +708,7 @@ func (s *Site) RenderHomePage() error {
 	n.Title = n.Site.Title
 	s.setUrls(n, "/")
 	n.Data["Pages"] = s.Pages
-	layouts := []string{"index.html"}
+	layouts := []string{"index.html", "_default/list.html", "_default/single.html"}
 	err := s.render(n, "/", s.appendThemeTemplates(layouts)...)
 	if err != nil {
 		return err
@@ -765,7 +765,7 @@ func (s *Site) RenderSitemap() error {
 
 	page := &Page{}
 	page.Date = s.Info.LastChange
-	page.Site = s.Info
+	page.Site = &s.Info
 	page.Url = "/"
 
 	pages = append(pages, page)
@@ -838,7 +838,7 @@ func (s *Site) PrettifyPath(in string) string {
 func (s *Site) NewNode() *Node {
 	return &Node{
 		Data: make(map[string]interface{}),
-		Site: s.Info,
+		Site: &s.Info,
 	}
 }
 
@@ -864,6 +864,10 @@ func (s *Site) render(d interface{}, out string, layouts ...string) (err error) 
 			return err
 		}
 		transformLinks = append(transformLinks, absURL...)
+	}
+
+	if viper.GetBool("watch") && !viper.GetBool("DisableLiveReload") {
+		transformLinks = append(transformLinks, transform.LiveReloadInject)
 	}
 
 	transformer := transform.NewChain(transformLinks...)
